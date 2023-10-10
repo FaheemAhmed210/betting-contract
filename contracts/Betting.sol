@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.19;
 
 /// @title Betting Contract
 /// @author Faheem Ahmed
@@ -9,6 +9,13 @@ import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "@chainlink/contracts/src/v0.8/vrf/VRFV2WrapperConsumerBase.sol";
     
 contract Betting  is VRFV2WrapperConsumerBase{
+
+    event RequestSent(uint256 requestId, uint32 numWords);
+
+    event betPlaced(address better, uint256 amount);
+
+    event tokensClaimed(address better, uint256 amount);
+
     /// @notice Address of the contract admin
     address public manager;
 
@@ -147,6 +154,8 @@ contract Betting  is VRFV2WrapperConsumerBase{
         if (_bets[msg.sender].choice == winner) {
             token.transfer(msg.sender, tokensRequired);
             _bets[msg.sender].claimed = true;
+
+              emit betPlaced(msg.sender, tokensRequired);
         } else {
             revert("Your Bet did not win");
         }
@@ -166,6 +175,8 @@ contract Betting  is VRFV2WrapperConsumerBase{
                     choice: betCoice
                 });
                 totalBets = totalBets + 1;
+
+                  emit tokensClaimed(msg.sender, tokensRequired);
             } else {
                 revert("Betting has ended");
             }
@@ -179,6 +190,7 @@ contract Betting  is VRFV2WrapperConsumerBase{
             requestConfirmations,
             numWords
         );
+        emit RequestSent(requestId,numWords);
     }
 
     /// @notice Function for the admin to pick the winner
@@ -194,19 +206,16 @@ contract Betting  is VRFV2WrapperConsumerBase{
         return block.timestamp > startTime && block.timestamp < endTime;
     }
 
- 
-   function fulfillRandomWords(
-        uint256 _requestId,
-        uint256[] memory _randomWords
-    ) internal override {
+    /// @notice CHAINLINK callback function for fullfillment of random words request, it will recive random word, and determine winner
+   function fulfillRandomWords(uint256 _requestId, uint256[] memory _randomWords ) internal override {
         randomResult = _randomWords[0];
         uint256 index = randomResult % 2;
         winner = index == 0 ? betOn.HEADS : betOn.TAILS;
         winnerSelected = true;
     }
 
-    /// @notice Internal function to check ibalance of users
-    function balance() public view returns (uint256) {
-        return token.balanceOf(msg.sender);
+    /// @notice Internal function to check if user has allowed any funds to contract or not 
+    function allowance() public view returns (uint256) {
+        return token.allowance(msg.sender,address(this));
     }
 }
